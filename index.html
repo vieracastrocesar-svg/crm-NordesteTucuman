@@ -1,38 +1,58 @@
-<!doctype html>
-<html lang="es">
-<head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>CRM Nordeste</title>
-<link rel="stylesheet" href="styles.css">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-</head>
-<body>
-<div class="wrap">
-<header><div><h1>CRM Comercial Nordeste</h1><p id="who">Gestión comercial online</p></div><button id="logout" class="secondary hidden">Cerrar sesión</button></header>
-<section id="authBox" class="card auth">
-<h2>Acceso al CRM</h2><p class="muted">Uso exclusivo del equipo comercial autorizado.</p>
-<div class="tabs"><button id="tabLogin" class="active" type="button">Ingresar</button><button id="tabActivate" type="button">Activar acceso</button></div>
-<form id="loginForm"><label>Email</label><input id="loginEmail" type="email" required><label>Contraseña</label><input id="loginPass" type="password" required minlength="6"><button>Ingresar</button></form>
-<form id="activateForm" class="hidden"><label>Email autorizado</label><input id="activateEmail" type="email" required><label>Elegí una contraseña</label><input id="activatePass" type="password" required minlength="6"><label>Repetí la contraseña</label><input id="activatePass2" type="password" required minlength="6"><button>Activar mi acceso</button><p class="muted small">Luego recibirás un correo para confirmar tu dirección.</p></form>
-<p id="authMsg" class="msg"></p>
-</section>
-<main id="crm" class="hidden">
-<section class="kpis"><div><span>Leads</span><strong id="kLeads">0</strong></div><div><span>Entrevistas+</span><strong id="kInterviews">0</strong></div><div><span>Propuestas</span><strong id="kProposals">0</strong></div><div><span>Ventas</span><strong id="kSales">0</strong></div></section>
-<div class="layout">
-<section class="card"><h2>Nuevo cliente</h2><form id="clientForm">
-<label>Nombre y apellido</label><input id="name" required>
-<label>Teléfono</label><input id="phone">
-<label>Origen</label><select id="source"><option>Meta</option><option>Web</option><option>Referido</option><option>Portal</option><option>Contacto propio</option><option>Evento</option><option>Visita empresa</option><option>Convenios corporativos</option><option>Digital - Orgánico</option><option>Digital - PPC Meta</option><option>Digital - Remarketing</option><option>Otro</option></select>
-<label>Proyecto</label><select id="project"><option>Sin datos</option><option>La Corona</option><option>El Cortijo</option><option>Otro</option></select>
-<label>Etapa</label><select id="stage"><option>Potencial</option><option>Contactado</option><option>Entrevista agendada</option><option>Primera entrevista</option><option>Propuesta</option><option>Reserva</option><option>Venta</option><option>Perdido</option></select>
-<label>Tipo de financiación</label><select id="financing"><option value="">Sin datos</option><option>Anticipo + cuotas</option><option>100% Financiado</option><option>Contado</option><option>Otro</option></select>
-<label>Último contacto</label><input id="lastContact" type="date"><label>Próximo seguimiento</label><input id="nextFollow" type="date"><label>Motivo de pérdida</label><input id="lostReason"><label>Observaciones</label><textarea id="notes"></textarea><button>Guardar cliente</button><p id="saveMsg" class="msg"></p>
-</form></section>
-<section>
-<section id="adminBox" class="card hidden"><h2>Resumen del equipo</h2><p class="muted">Vista consolidada exclusiva del Jefe Comercial.</p><div id="teamSummary"></div></section>
-<section class="card"><div class="head"><div><h2 id="title">Mis clientes</h2><p id="subtitle" class="muted">Solo podés ver tus gestiones.</p></div><div class="actions"><input id="filterMonth" type="month" title="Filtrar por mes del lead"><button id="clearMonth" type="button" class="secondary smallbtn">Todos los meses</button><select id="filterSeller" class="hidden"><option value="">Todos los vendedores</option></select><select id="filterKpi"><option value="">Todos los estados comerciales</option><option value="interviews">Entrevistas+</option><option value="proposals">Propuestas</option><option value="sales">Ventas</option></select><select id="filterStage"><option value="">Todas las etapas</option></select><input id="search" placeholder="Buscar cliente..."></div></div>
-<div class="table"><table><thead><tr><th>Cliente</th><th>Proyecto</th><th>Origen</th><th>Etapa</th><th>Último contacto</th><th>Próximo seguimiento</th><th>Notas</th></tr></thead><tbody id="rows"></tbody></table></div></section>
-</section></div></main>
-</div>
-<script src="config.js"></script><script src="app.js"></script>
-</body></html>
+CRM Comercial Nordeste
+Gestión comercial online
+
+Cerrar sesión
+Acceso al CRM
+Uso exclusivo del equipo comercial autorizado.
+
+IngresarActivar acceso
+Email
+Contraseña
+Ingresar
+Email autorizado
+Elegí una contraseña
+Repetí la contraseña
+Activar mi acceso
+Luego recibirás un correo para confirmar tu dirección.
+
+Leads0
+Entrevistas+0
+Propuestas0
+Ventas0
+Nuevo cliente
+Nombre y apellido
+ Teléfono
+Asignar a vendedor
+Seleccionar vendedor
+Origen
+Meta
+ Proyecto
+Sin datos
+ Etapa
+Potencial
+ Tipo de financiación
+Sin datos
+ Último contacto
+dd/mm/aaaa
+Próximo seguimiento
+dd/mm/aaaa
+Motivo de pérdida
+Observaciones
+
+Guardar cliente
+Resumen del equipo
+Vista consolidada exclusiva del Jefe Comercial.
+
+Mis clientes
+Solo podés ver tus gestiones.
+
+
+---------- de ----
+Todos los meses
+Todos los vendedores
+
+Todos los estados comerciales
+
+Todas las etapas
+Buscar cliente...
+Cliente	Proyecto	Origen	Etapa	Último contacto	Próximo seguimiento	Notas
