@@ -13,17 +13,24 @@ if(profile?.role==='admin'){
   sel.innerHTML='<option value="">Todos los vendedores</option>'+sellers.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join('');
   if(sellers.includes(current)) sel.value=current;
 }
-render()}
+$('filterStage').innerHTML='<option value="">Todas las etapas</option>'+['Potencial','Contactado','Entrevista agendada','Primera entrevista','Propuesta','Reserva','Venta','Perdido'].map(s=>`<option value="${s}">${s}</option>`).join('');render()}
 function filtered(){
   const q=$('search').value.trim().toLowerCase(),
         st=$('filterStage').value,
         month=$('filterMonth').value,
-        seller=$('filterSeller').value;
+        seller=$('filterSeller').value,
+        kpi=$('filterKpi').value;
   return clients.filter(c=>{
     const sellerName=c.profiles?.full_name||c.legacy_owner_name||'Sin asignar';
+    const kpiOk =
+      !kpi ||
+      (kpi==='interviews' && ['Entrevista agendada','Primera entrevista','Propuesta','Reserva','Venta'].includes(c.stage)) ||
+      (kpi==='proposals' && ['Propuesta','Reserva','Venta'].includes(c.stage)) ||
+      (kpi==='sales' && c.stage==='Venta');
     return (!st||c.stage===st)
       &&(!month||(c.lead_date||'').slice(0,7)===month)
       &&(!seller||sellerName===seller)
+      &&kpiOk
       &&(!q||[c.name,c.phone,c.project,c.source,c.stage,c.notes,c.legacy_owner_name,sellerName]
         .some(v=>String(v||'').toLowerCase().includes(q)));
   })
@@ -31,4 +38,13 @@ function filtered(){
 function followClass(d){if(!d)return'';const today=new Date().toISOString().slice(0,10);return d<today?'overdue':d===today?'today':''}
 function render(){const list=filtered();$('kLeads').textContent=list.length;$('kInterviews').textContent=list.filter(c=>['Entrevista agendada','Primera entrevista','Propuesta','Reserva','Venta'].includes(c.stage)).length;$('kProposals').textContent=list.filter(c=>['Propuesta','Reserva','Venta'].includes(c.stage)).length;$('kSales').textContent=list.filter(c=>c.stage==='Venta').length;$('rows').innerHTML=list.length?list.map(c=>`<tr><td><strong>${esc(c.name)}</strong><div class="muted">${esc(c.phone||'')}</div>${profile.role==='admin'?`<span class="badge">${esc(c.profiles?.full_name||c.legacy_owner_name||'Sin asignar')}</span>`:''}</td><td>${esc(c.project||'Sin datos')}</td><td>${esc(c.source||'')}</td><td><select class="st" data-id="${c.id}">${stages.map(s=>`<option ${s===c.stage?'selected':''}>${s}</option>`).join('')}</select></td><td>${esc(c.last_contact||'—')}</td><td class="${followClass(c.next_follow_up)}">${esc(c.next_follow_up||'—')}</td><td>${esc(c.notes||'—')}</td></tr>`).join(''):'<tr><td colspan="7" class="muted" style="text-align:center;padding:24px">Sin registros.</td></tr>';document.querySelectorAll('.st').forEach(x=>x.onchange=async e=>{const {error}=await db.from('clients').update({stage:e.target.value}).eq('id',e.target.dataset.id);if(error)alert('No se pudo actualizar');else await loadClients()});if(profile.role==='admin')summary()}
 function summary(){const g={};filtered().forEach(c=>{const n=c.profiles?.full_name||c.legacy_owner_name||'Sin asignar';g[n]??={leads:0,interviews:0,proposals:0,sales:0};g[n].leads++;if(['Entrevista agendada','Primera entrevista','Propuesta','Reserva','Venta'].includes(c.stage))g[n].interviews++;if(['Propuesta','Reserva','Venta'].includes(c.stage))g[n].proposals++;if(c.stage==='Venta')g[n].sales++});$('teamSummary').innerHTML=Object.entries(g).sort((a,b)=>b[1].leads-a[1].leads).map(([n,d])=>`<div class="seller"><strong>${esc(n)}</strong><span>${d.leads} leads</span><span>${d.interviews} entrevistas+</span><span>${d.proposals} propuestas</span><span>${d.sales} ventas</span></div>`).join('')||'<div class="muted">Sin registros para el período seleccionado.</div>'}
-$('clientForm').onsubmit=async e=>{e.preventDefault();$('saveMsg').textContent='Guardando...';const payload={owner_id:user.id,name:$('name').value.trim(),phone:$('phone').value.trim(),source:$('source').value,project:$('project').value,stage:$('stage').value,financing_type:$('financing').value,last_contact:$('lastContact').value||null,next_follow_up:$('nextFollow').value||null,lost_reason:$('lostReason').value.trim(),notes:$('notes').value.trim(),lead_date:new Date().toISOString().slice(0,10)};const {error}=await db.from('clients').insert(payload);if(error){$('saveMsg').textContent='No se pudo guardar.';$('saveMsg').className='msg err';return}e.target.reset();$('project').value='Sin datos';$('saveMsg').textContent='Cliente guardado.';$('saveMsg').className='msg ok';await loadClients()};$('search').oninput=render;$('filterStage').onchange=render;$('filterMonth').onchange=render;$('filterSeller').onchange=render;$('clearMonth').onclick=()=>{$('filterMonth').value='';render()};$('logout').onclick=async()=>{await db.auth.signOut();location.reload()};(async()=>{const {data}=await db.auth.getSession();if(data.session){user=data.session.user;try{await loadProfile();await openCRM()}catch(e){console.error(e);await db.auth.signOut()}}})();
+$('clientForm').onsubmit=async e=>{e.preventDefault();$('saveMsg').textContent='Guardando...';const payload={owner_id:user.id,name:$('name').value.trim(),phone:$('phone').value.trim(),source:$('source').value,project:$('project').value,stage:$('stage').value,financing_type:$('financing').value,last_contact:$('lastContact').value||null,next_follow_up:$('nextFollow').value||null,lost_reason:$('lostReason').value.trim(),notes:$('notes').value.trim(),lead_date:new Date().toISOString().slice(0,10)};const {error}=await db.from('clients').insert(payload);if(error){$('saveMsg').textContent='No se pudo guardar.';$('saveMsg').className='msg err';return}e.target.reset();$('project').value='Sin datos';$('saveMsg').textContent='Cliente guardado.';$('saveMsg').className='msg ok';await loadClients()};$('search').oninput=render;$('filterStage').onchange=render;$('filterMonth').onchange=render;$('filterSeller').onchange=render;$('filterKpi').onchange=render;$('clearMonth').onclick=()=>{$('filterMonth').value='';render()};$('logout').onclick=async()=>{await db.auth.signOut();location.reload()};(async()=>{const {data}=await db.auth.getSession();if(data.session){user=data.session.user;try{await loadProfile();await openCRM()}catch(e){console.error(e);await db.auth.signOut()}}})();
+
+
+function setQuickKpi(value){
+  $('filterKpi').value=value;
+  render();
+}
+if($('kpiInterviews')) $('kpiInterviews').onclick=()=>setQuickKpi('interviews');
+if($('kpiProposals')) $('kpiProposals').onclick=()=>setQuickKpi('proposals');
+if($('kpiSales')) $('kpiSales').onclick=()=>setQuickKpi('sales');
