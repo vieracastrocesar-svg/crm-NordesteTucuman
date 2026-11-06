@@ -188,7 +188,7 @@ function managementBadge(c){
 }
 
 function queueKind(c){
- if(['Venta','Perdido'].includes(c.stage))return null;
+ if(!c.owner_id||['Venta','Perdido'].includes(c.stage))return null;
  if(!sellerEventsLoaded)return null;
  if(!verifiedSellerEvent(c))return 'first';
  if(!c.next_follow_up)return 'date';
