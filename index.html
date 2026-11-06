@@ -28,14 +28,14 @@
 <section class="kpis"><div><span>Leads</span><strong id="kLeads">0</strong></div><div><span>Entrevistas+</span><strong id="kInterviews">0</strong></div><div><span>Propuestas</span><strong id="kProposals">0</strong></div><div><span>Ventas</span><strong id="kSales">0</strong></div></section>
 
 <section class="card queue-card" aria-label="Bandeja de leads sin gestión">
- <div class="queue-head"><div><h2>Leads nuevos y sin seguimiento</h2><p class="muted small">Pendientes de primera gestión o sin una próxima fecha programada. Organizados por día de ingreso.</p></div><div class="queue-stats"><div class="queue-count"><strong id="queueFirstCount">0</strong>sin primera gestión</div><div class="queue-count"><strong id="queueDateCount">0</strong>sin próximo seguimiento</div></div></div>
+ <div class="queue-head"><div><h2>Leads nuevos y sin seguimiento</h2><p class="muted small">Pendientes de gestión verificada por la vendedora o sin una próxima fecha programada. Organizados por día de ingreso.</p></div><div class="queue-stats"><div class="queue-count"><strong id="queueFirstCount">0</strong>sin gestión verificada</div><div class="queue-count"><strong id="queueDateCount">0</strong>sin próximo seguimiento</div></div></div>
  <div class="queue-controls">
-  <select id="queueType" aria-label="Tipo de pendiente"><option value="first">Sin primera gestión</option><option value="date">Sin próximo seguimiento</option><option value="all">Todos los pendientes</option></select>
+  <select id="queueType" aria-label="Tipo de pendiente"><option value="first">Sin gestión de vendedora</option><option value="date">Sin próximo seguimiento</option><option value="all">Todos los pendientes</option></select>
   <input id="queueDay" type="date" aria-label="Filtrar por fecha de ingreso" title="Fecha de ingreso del lead">
   <button type="button" id="queueToday" class="secondary">Ingresados hoy</button><button type="button" id="queueAllDays" class="secondary">Todos los días</button>
   <select id="queueSeller" class="hidden" aria-label="Filtrar pendientes por vendedor"><option value="">Todos los vendedores</option></select>
  </div>
- <div id="queueResults" aria-live="polite"></div>
+ <p class="follow-note">Las fechas y notas cargadas por el jefe comercial no se consideran gestión de la vendedora. Una gestión se acredita al guardar una nota desde la cuenta de la vendedora.</p><div id="queueResults" aria-live="polite"></div>
 </section>
 <section class="charts" aria-label="Gráficos comerciales">
  <article class="chart-card"><h2>Leads ingresados por vendedor</h2><div class="chart-sub">Cantidad por vendedor · según filtros de mes, etapa y búsqueda</div><div class="chart-inner"><div id="pieSellers" class="pie" role="img" aria-label="Distribución de leads por vendedor"></div><div id="legendSellers" class="legend"></div></div></article>
@@ -64,7 +64,7 @@
  <form id="editForm"><label for="editName">Nombre del cliente</label><input id="editName" type="text" required maxlength="200" autocomplete="name"><label for="editLastContact">Fecha del último contacto</label><input id="editLastContact" type="date">
  <label for="editNextFollow">Próxima fecha de seguimiento</label><input id="editNextFollow" type="date">
  <label>Notas anteriores</label><div id="editHistory" class="note-history"></div>
- <label for="editNewNote">Agregar nota de gestión</label><textarea id="editNewNote" placeholder="Ej.: Se contactó por WhatsApp; solicita presupuesto..."></textarea>
+ <label for="editNewNote">Agregar nota de gestión</label><p class="follow-note">Para acreditar una gestión de la vendedora, debe registrar una nota desde su propia cuenta. Cambiar únicamente fechas no acredita una gestión.</p><textarea id="editNewNote" placeholder="Ej.: Se contactó por WhatsApp; solicita presupuesto..."></textarea>
  <p id="editError" class="msg err" role="alert"></p><div class="editor-actions"><button type="button" id="editCancel" class="secondary">Cancelar</button><button type="submit" id="editSave">Guardar seguimiento</button></div></form>
  </section>
 </div>
@@ -73,7 +73,7 @@ window.CRM_CONFIG={SUPABASE_URL:'https://roshznidzhjhtnrpljsr.supabase.co',SUPAB
 
 </script>
 <script>
-const cfg=window.CRM_CONFIG;const db=supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY);let user=null,profile=null,clients=[],sellerProfiles=[];const stages=['Potencial','Contactado','Entrevista agendada','Primera entrevista','Propuesta','Reserva','Venta','Perdido'];const $=id=>document.getElementById(id);const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));stages.forEach(s=>$('filterStage').insertAdjacentHTML('beforeend','<option>'+s+'</option>'));
+const cfg=window.CRM_CONFIG;const db=supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY);let user=null,profile=null,clients=[],sellerProfiles=[],sellerEventsByClient=new Map(),sellerEventsLoaded=false;const stages=['Potencial','Contactado','Entrevista agendada','Primera entrevista','Propuesta','Reserva','Venta','Perdido'];const $=id=>document.getElementById(id);const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));stages.forEach(s=>$('filterStage').insertAdjacentHTML('beforeend','<option>'+s+'</option>'));
 function authTab(which){const a=which==='activate';$('activateForm').classList.toggle('hidden',!a);$('loginForm').classList.toggle('hidden',a);$('tabActivate').classList.toggle('active',a);$('tabLogin').classList.toggle('active',!a);$('authMsg').textContent=''}$('tabLogin').onclick=()=>authTab('login');$('tabActivate').onclick=()=>authTab('activate');
 $('activateForm').onsubmit=async e=>{e.preventDefault();const email=$('activateEmail').value.trim().toLowerCase(),p=$('activatePass').value,p2=$('activatePass2').value;$('authMsg').className='msg';if(p!==p2){$('authMsg').textContent='Las contraseñas no coinciden.';$('authMsg').classList.add('err');return}$('authMsg').textContent='Activando...';const {error}=await db.auth.signUp({email,password:p});if(error){$('authMsg').textContent='No se pudo activar. Verificá que el correo esté autorizado o que no tenga ya una cuenta.';$('authMsg').classList.add('err');return}$('authMsg').textContent='Cuenta creada. Revisá tu correo para confirmar el acceso y luego ingresá.';$('authMsg').classList.add('ok')};
 $('loginForm').onsubmit=async e=>{e.preventDefault();$('authMsg').textContent='Ingresando...';const {data,error}=await db.auth.signInWithPassword({email:$('loginEmail').value.trim(),password:$('loginPass').value});if(error){$('authMsg').textContent='No se pudo ingresar. Verificá email, contraseña y confirmación del correo.';$('authMsg').className='msg err';return}user=data.user;await loadProfile();await openCRM()};
@@ -89,6 +89,7 @@ async function loadSellerProfiles(){
 }
 async function openCRM(){$('authBox').classList.add('hidden');$('crm').classList.remove('hidden');$('logout').classList.remove('hidden');$('who').textContent=profile.full_name+' · '+(profile.role==='admin'?'Jefe Comercial':'Vendedor');if(profile.role==='admin'){$('adminBox').classList.remove('hidden');$('filterSeller').classList.remove('hidden');$('queueSeller').classList.remove('hidden');$('ownerField').classList.remove('hidden');$('title').textContent='Clientes del equipo';$('subtitle').textContent='Vista gerencial completa, incluidos los registros sin asignar.';await loadSellerProfiles()}await loadClients()}
 async function loadClients(){const {data,error}=await db.from('clients').select('*,profiles(full_name)').order('lead_date',{ascending:false,nullsFirst:false}).order('created_at',{ascending:false});if(error){alert('No se pudieron cargar los clientes.');console.error(error);return}clients=data||[];
+ await loadSellerManagementEvents();
 if(profile?.role==='admin'){
   const sel=$('filterSeller');
   const current=sel.value;
@@ -126,8 +127,7 @@ function localToday(){const n=new Date();return [n.getFullYear(),String(n.getMon
 function followState(c){
  const due=(c.next_follow_up||'').slice(0,10);
  if(!due)return {code:'none',text:'Sin fecha'};
- const last=(c.last_contact||'').slice(0,10);
- if(last&&last>=due)return {code:'green',text:'Gestión registrada'};
+ const verified=verifiedSellerEvent(c);if(verified&&eventLocalDate(verified)>=due)return {code:'green',text:'Gestión de vendedora registrada'};
  const days=Math.round((Date.parse(due+'T00:00:00Z')-Date.parse(localToday()+'T00:00:00Z'))/86400000);
  if(days<=-2)return {code:'red',text:'Vencido '+Math.abs(days)+' días'};
  if(days===-1)return {code:'yellow',text:'Atrasado 1 día'};
@@ -154,10 +154,43 @@ $('editOverlay').addEventListener('click',ev=>{if(ev.target===$('editOverlay'))c
 document.addEventListener('keydown',ev=>{if(ev.key==='Escape'&&!$('editOverlay').classList.contains('hidden'))closeClientEditor()});
 $('editForm').onsubmit=async ev=>{ev.preventDefault();const c=clients.find(x=>x.id===editingClientId);if(!c)return;const updatedName=$('editName').value.trim();if(!updatedName){$('editError').textContent='Ingresá el nombre del cliente.';return}const note=$('editNewNote').value.trim();const dateStr=new Date().toLocaleString('es-AR',{dateStyle:'short',timeStyle:'short'});const updatedNotes=note?[c.notes||'',`[${dateStr} · ${profile.full_name}] ${note}`].filter(Boolean).join('\n\n'):(c.notes||'');const payload={name:updatedName,last_contact:note?localToday():($('editLastContact').value||null),next_follow_up:$('editNextFollow').value||null,notes:updatedNotes};$('editSave').disabled=true;$('editError').textContent='';try{const {data,error}=await db.from('clients').update(payload).eq('id',c.id).select('id');if(error)throw error;if(!data?.length)throw new Error('No se pudo confirmar la actualización. Revisá los permisos del cliente.');closeClientEditor();await loadClients()}catch(error){console.error(error);$('editError').textContent='No se pudo guardar el seguimiento. '+(error.message||'')}finally{$('editSave').disabled=false}};
 
+
+async function loadSellerManagementEvents(){
+ sellerEventsByClient=new Map();sellerEventsLoaded=false;
+ const pageSize=1000;
+ try{
+   for(let offset=0;;offset+=pageSize){
+     const {data,error}=await db.from('seller_management_events')
+       .select('client_id,seller_id,recorded_at').order('recorded_at',{ascending:false})
+       .range(offset,offset+pageSize-1);
+     if(error)throw error;
+     (data||[]).forEach(event=>{
+       const arr=sellerEventsByClient.get(event.client_id)||[];
+       arr.push(event);
+       sellerEventsByClient.set(event.client_id,arr);
+     });
+     if((data||[]).length<pageSize)break;
+   }
+   sellerEventsLoaded=true;
+ }catch(err){console.error('No se pudieron cargar las gestiones verificadas',err);}
+}
+function verifiedSellerEvent(c){
+ return (sellerEventsByClient.get(c.id)||[]).find(e=>e.seller_id===c.owner_id)||null;
+}
+function eventLocalDate(event){
+ return event?new Intl.DateTimeFormat('sv-SE',{year:'numeric',month:'2-digit',day:'2-digit',timeZone:'America/Argentina/Tucuman'}).format(new Date(event.recorded_at)):'';
+}
+function managementBadge(c){
+ if(!sellerEventsLoaded)return '<span class="queue-tag">No se pudo verificar</span>';
+ if(!c.owner_id)return '<span class="queue-tag">Sin vendedor asignado</span>';
+ const event=verifiedSellerEvent(c);
+ return event?'<span class="queue-tag needs-date">Gestión vendedora: '+esc(new Date(event.recorded_at).toLocaleString('es-AR',{dateStyle:'short',timeStyle:'short',timeZone:'America/Argentina/Tucuman'}))+'</span>':'<span class="queue-tag">Sin gestión verificada de vendedora</span>';
+}
+
 function queueKind(c){
  if(['Venta','Perdido'].includes(c.stage))return null;
- const hasManagement=Boolean((c.last_contact||'').trim()||(c.notes||'').trim());
- if(!hasManagement)return 'first';
+ if(!sellerEventsLoaded)return null;
+ if(!verifiedSellerEvent(c))return 'first';
  if(!c.next_follow_up)return 'date';
  return null;
 }
@@ -168,6 +201,7 @@ function prettyQueueDate(s){
  return new Intl.DateTimeFormat('es-AR',{weekday:'long',day:'numeric',month:'long',year:'numeric',timeZone:'UTC'}).format(new Date(Date.UTC(y,m-1,d)));
 }
 function renderQueue(){
+ if(!sellerEventsLoaded){$('queueFirstCount').textContent='—';$('queueDateCount').textContent='—';$('queueResults').innerHTML='<div class="queue-empty">No se pudo verificar el historial de gestiones. Actualizá la página o informá al administrador.</div>';return}
  const all=clients.filter(c=>queueKind(c));
  const owner=$('queueSeller').value;
  const userRows=all.filter(c=>!owner||(c.profiles?.full_name||c.legacy_owner_name||'Sin asignar')===owner);
@@ -178,11 +212,11 @@ function renderQueue(){
  matches.sort((a,b)=>queueDate(b).localeCompare(queueDate(a))||String(b.created_at||'').localeCompare(String(a.created_at||'')));
  const byDate=new Map();
  matches.forEach(c=>{const date=queueDate(c)||'sin-fecha';if(!byDate.has(date))byDate.set(date,[]);byDate.get(date).push(c)});
- $('queueResults').innerHTML=matches.length?Array.from(byDate.entries()).map(([date,items])=>`<div class="queue-day"><div class="queue-day-header"><span>${esc(prettyQueueDate(date))}</span><span>${items.length} lead${items.length!==1?'s':''}</span></div>${items.map(c=>`<div class="queue-lead"><div class="queue-lead-details"><strong>${esc(c.name)}</strong><div class="queue-meta">${esc(c.phone||'Sin teléfono')} · ${esc(c.project||'Sin proyecto')} · ${esc(c.profiles?.full_name||c.legacy_owner_name||'Sin asignar')}</div></div><span class="queue-tag ${queueKind(c)==='date'?'needs-date':''}">${queueKind(c)==='first'?'Sin primera gestión':'Sin próxima fecha'}</span><button type="button" class="queue-button" data-queue-edit="${esc(c.id)}">Registrar gestión</button></div>`).join('')}</div>`).join(''):'<div class="queue-empty">No hay leads pendientes para esta selección.</div>';
+ $('queueResults').innerHTML=matches.length?Array.from(byDate.entries()).map(([date,items])=>`<div class="queue-day"><div class="queue-day-header"><span>${esc(prettyQueueDate(date))}</span><span>${items.length} lead${items.length!==1?'s':''}</span></div>${items.map(c=>`<div class="queue-lead"><div class="queue-lead-details"><strong>${esc(c.name)}</strong><div class="queue-meta">${esc(c.phone||'Sin teléfono')} · ${esc(c.project||'Sin proyecto')} · ${esc(c.profiles?.full_name||c.legacy_owner_name||'Sin asignar')}</div><div style="margin-top:5px">${managementBadge(c)}</div></div><span class="queue-tag ${queueKind(c)==='date'?'needs-date':''}">${queueKind(c)==='first'?'Sin gestión de vendedora':'Sin próxima fecha'}</span><button type="button" class="queue-button" data-queue-edit="${esc(c.id)}">Registrar gestión</button></div>`).join('')}</div>`).join(''):'<div class="queue-empty">No hay leads pendientes para esta selección.</div>';
  document.querySelectorAll('[data-queue-edit]').forEach(btn=>btn.onclick=()=>openClientEditor(btn.dataset.queueEdit));
 }
 
-function render(){const order={red:0,yellow:1,green:2,none:3};const list=filtered().sort((a,b)=>order[followState(a).code]-order[followState(b).code]);renderFollowDashboard();renderQueue();$('kLeads').textContent=list.length;$('kInterviews').textContent=list.filter(c=>['Entrevista agendada','Primera entrevista','Propuesta','Reserva','Venta'].includes(c.stage)).length;$('kProposals').textContent=list.filter(c=>['Propuesta','Reserva','Venta'].includes(c.stage)).length;$('kSales').textContent=list.filter(c=>c.stage==='Venta').length;$('rows').innerHTML=list.length?list.map(c=>`<tr class="follow-row-${followState(c).code}"><td><strong>${esc(c.name)}</strong><div class="muted">${esc(c.phone||'')}</div>${profile.role==='admin'?`<span class="badge">${esc(c.profiles?.full_name||c.legacy_owner_name||'Sin asignar')}</span>`:''}</td><td>${esc(c.project||'Sin datos')}</td><td>${esc(c.source||'')}</td><td><select class="st" data-id="${c.id}">${stages.map(s=>`<option ${s===c.stage?'selected':''}>${s}</option>`).join('')}</select></td><td>${esc(c.last_contact||'—')}</td><td>${esc(c.next_follow_up||'—')}<div style="margin-top:5px"><span class="follow-status follow-${followState(c).code}">${esc(followState(c).text)}</span></div></td><td>${esc(c.notes||'—')}</td><td><button type="button" class="edit-btn" data-edit="${c.id}">Seguimiento / notas</button></td></tr>`).join(''):'<tr><td colspan="8" class="muted" style="text-align:center;padding:24px">Sin registros.</td></tr>';document.querySelectorAll('.st').forEach(x=>x.onchange=async e=>{const {error}=await db.from('clients').update({stage:e.target.value}).eq('id',e.target.dataset.id);if(error)alert('No se pudo actualizar');else await loadClients()});document.querySelectorAll('[data-edit]').forEach(btn=>btn.onclick=()=>openClientEditor(btn.dataset.edit));drawCharts(list);if(profile.role==='admin')summary()}
+function render(){const order={red:0,yellow:1,green:2,none:3};const list=filtered().sort((a,b)=>order[followState(a).code]-order[followState(b).code]);renderFollowDashboard();renderQueue();$('kLeads').textContent=list.length;$('kInterviews').textContent=list.filter(c=>['Entrevista agendada','Primera entrevista','Propuesta','Reserva','Venta'].includes(c.stage)).length;$('kProposals').textContent=list.filter(c=>['Propuesta','Reserva','Venta'].includes(c.stage)).length;$('kSales').textContent=list.filter(c=>c.stage==='Venta').length;$('rows').innerHTML=list.length?list.map(c=>`<tr class="follow-row-${followState(c).code}"><td><strong>${esc(c.name)}</strong><div class="muted">${esc(c.phone||'')}</div>${profile.role==='admin'?`<span class="badge">${esc(c.profiles?.full_name||c.legacy_owner_name||'Sin asignar')}</span>`:''}</td><td>${esc(c.project||'Sin datos')}</td><td>${esc(c.source||'')}</td><td><select class="st" data-id="${c.id}">${stages.map(s=>`<option ${s===c.stage?'selected':''}>${s}</option>`).join('')}</select></td><td>${esc(c.last_contact||'—')}<div style="margin-top:6px">${managementBadge(c)}</div></td><td>${esc(c.next_follow_up||'—')}<div style="margin-top:5px"><span class="follow-status follow-${followState(c).code}">${esc(followState(c).text)}</span></div></td><td>${esc(c.notes||'—')}</td><td><button type="button" class="edit-btn" data-edit="${c.id}">Seguimiento / notas</button></td></tr>`).join(''):'<tr><td colspan="8" class="muted" style="text-align:center;padding:24px">Sin registros.</td></tr>';document.querySelectorAll('.st').forEach(x=>x.onchange=async e=>{const {error}=await db.from('clients').update({stage:e.target.value}).eq('id',e.target.dataset.id);if(error)alert('No se pudo actualizar');else await loadClients()});document.querySelectorAll('[data-edit]').forEach(btn=>btn.onclick=()=>openClientEditor(btn.dataset.edit));drawCharts(list);if(profile.role==='admin')summary()}
 function summary(){const g={};filtered().forEach(c=>{const n=c.profiles?.full_name||c.legacy_owner_name||'Sin asignar';g[n]??={leads:0,interviews:0,proposals:0,sales:0};g[n].leads++;if(['Entrevista agendada','Primera entrevista','Propuesta','Reserva','Venta'].includes(c.stage))g[n].interviews++;if(['Propuesta','Reserva','Venta'].includes(c.stage))g[n].proposals++;if(c.stage==='Venta')g[n].sales++});$('teamSummary').innerHTML=Object.entries(g).sort((a,b)=>b[1].leads-a[1].leads).map(([n,d])=>`<div class="seller"><strong>${esc(n)}</strong><span>${d.leads} leads</span><span>${d.interviews} entrevistas+</span><span>${d.proposals} propuestas</span><span>${d.sales} ventas</span></div>`).join('')||'<div class="muted">Sin registros para el período seleccionado.</div>'}
 $('clientForm').onsubmit=async e=>{e.preventDefault();$('saveMsg').textContent='Guardando...';const selectedOwner=profile.role==='admin'?$('ownerSelect').value:user.id;if(profile.role==='admin'&&!selectedOwner){$('saveMsg').textContent='Seleccioná el vendedor al que querés asignar el lead.';$('saveMsg').className='msg err';return}const payload={owner_id:selectedOwner,name:$('name').value.trim(),phone:$('phone').value.trim(),source:$('source').value,project:$('project').value,stage:$('stage').value,financing_type:$('financing').value,last_contact:$('lastContact').value||null,next_follow_up:$('nextFollow').value||null,lost_reason:$('lostReason').value.trim(),notes:$('notes').value.trim(),lead_date:new Date().toISOString().slice(0,10)};const {error}=await db.from('clients').insert(payload);if(error){console.error(error);$('saveMsg').textContent='No se pudo guardar.';$('saveMsg').className='msg err';return}e.target.reset();$('project').value='Sin datos';if(profile.role==='admin')$('ownerSelect').value='';$('saveMsg').textContent='Cliente guardado y asignado correctamente.';$('saveMsg').className='msg ok';await loadClients()};$('search').oninput=render;$('filterStage').onchange=render;$('filterMonth').onchange=render;$('filterSeller').onchange=render;$('filterKpi').onchange=render;$('filterFollow').onchange=render;$('queueType').onchange=renderQueue;$('queueDay').onchange=renderQueue;$('queueSeller').onchange=renderQueue;$('queueToday').onclick=()=>{$('queueDay').value=localToday();renderQueue()};$('queueAllDays').onclick=()=>{$('queueDay').value='';renderQueue()};$('clearMonth').onclick=()=>{$('filterMonth').value='';render()};$('logout').onclick=async()=>{await db.auth.signOut();location.reload()};(async()=>{const {data}=await db.auth.getSession();if(data.session){user=data.session.user;try{await loadProfile();await openCRM()}catch(e){console.error(e);await db.auth.signOut()}}})();
 
