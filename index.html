@@ -27,6 +27,7 @@
 .gestion-confirm strong{display:block;margin-bottom:3px}
 .gestion-confirm small{display:block;color:#52665a;font-weight:400}
 #editSave:disabled{opacity:.48;cursor:not-allowed}
+.report-card{border:1px solid #a7c5b5;background:#fcfffd;margin-bottom:20px}.report-head{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}.report-head h2{margin-bottom:5px}.report-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.report-actions input{width:170px}.report-actions button{margin:0;background:#0c846a}.report-actions button.secondary{background:#475569}.report-cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:14px 0}.report-stat{padding:12px;border-radius:10px;border:1px solid #dbe7df;background:#fff}.report-stat small{display:block;color:#63796a;font-size:12px}.report-stat strong{display:block;font-size:25px;margin-top:6px}.report-section{margin:18px 0 10px;font-size:16px;font-weight:700}.report-table-wrap{overflow:auto}.report-table{border-collapse:collapse;width:100%;min-width:700px}.report-table td,.report-table th{padding:9px;border-bottom:1px solid #e2ebe5;font-size:12px;text-align:left}.report-detail-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.report-detail-grid>div{border:1px solid #e0e8e1;border-radius:10px;background:#fff;padding:10px}.report-detail-grid h3{font-size:14px;margin:0 0 8px}.report-detail-grid p{display:flex;justify-content:space-between;margin:6px 0;font-size:12px;gap:8px}.report-meta{font-size:12px;color:#61736b;margin:9px 0}.report-warning{padding:10px;border:1px solid #efd39b;border-radius:8px;background:#fff8e8;font-size:12px;color:#79561c}.report-error{color:#b42318;font-size:13px}@media(max-width:840px){.report-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.report-detail-grid{grid-template-columns:1fr}}@media print{body.report-print header,body.report-print #crm> :not(#monthlyReport){display:none!important}body.report-print #monthlyReport{display:block!important}body.report-print .report-actions{display:none!important}body.report-print .wrap{max-width:100%;padding:4px}body.report-print .report-card{border:0}}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -41,6 +42,14 @@
 <p id="authMsg" class="msg"></p>
 </section>
 <main id="crm" class="hidden">
+<section id="monthlyReport" class="card report-card hidden" aria-label="Informe mensual de gestión comercial">
+ <div class="report-head">
+  <div><h2>Reporte mensual de gestión comercial</h2><p class="muted small">Cierre automático el día 5 a las 10:00. Consultá cualquier mes y descargá el resumen.</p></div>
+  <div class="report-actions"><input id="reportMonth" type="month" aria-label="Mes del reporte" title="Elegir mes comercial"><button type="button" id="reportCsv">Exportar CSV</button><button type="button" class="secondary" id="reportPrint">Imprimir / PDF</button></div>
+ </div>
+ <p id="reportStatus" class="report-meta" role="status"></p>
+ <div id="reportContent"></div>
+</section>
 <section class="kpis"><div><span>Leads</span><strong id="kLeads">0</strong></div><div><span>Entrevistas+</span><strong id="kInterviews">0</strong></div><div><span>Propuestas</span><strong id="kProposals">0</strong></div><div><span>Ventas</span><strong id="kSales">0</strong></div></section>
 
 <section class="card queue-card" aria-label="Bandeja de leads sin gestión">
@@ -108,7 +117,7 @@ async function loadSellerProfiles(){
   sel.innerHTML='<option value="">Seleccionar vendedor</option>'+
     sellerProfiles.map(s=>`<option value="${s.id}">${esc(s.full_name)}</option>`).join('');
 }
-async function openCRM(){$('authBox').classList.add('hidden');$('crm').classList.remove('hidden');$('logout').classList.remove('hidden');$('who').textContent=profile.full_name+' · '+(profile.role==='admin'?'Jefe Comercial':'Vendedor');if(profile.role==='admin'){$('adminBox').classList.remove('hidden');$('filterSeller').classList.remove('hidden');$('queueSeller').classList.remove('hidden');$('recoverySeller').classList.remove('hidden');$('ownerField').classList.remove('hidden');$('title').textContent='Clientes del equipo';$('subtitle').textContent='Vista gerencial completa, incluidos los registros sin asignar.';await loadSellerProfiles()}await loadClients()}
+async function openCRM(){$('authBox').classList.add('hidden');$('crm').classList.remove('hidden');$('logout').classList.remove('hidden');$('who').textContent=profile.full_name+' · '+(profile.role==='admin'?'Jefe Comercial':'Vendedor');if(profile.role==='admin'){$('monthlyReport').classList.remove('hidden');$('reportMonth').value=defaultReportMonth();$('adminBox').classList.remove('hidden');$('filterSeller').classList.remove('hidden');$('queueSeller').classList.remove('hidden');$('recoverySeller').classList.remove('hidden');$('ownerField').classList.remove('hidden');$('title').textContent='Clientes del equipo';$('subtitle').textContent='Vista gerencial completa, incluidos los registros sin asignar.';await loadSellerProfiles()}await loadClients()}
 async function loadClients(){const {data,error}=await db.from('clients').select('*,profiles(full_name)').order('lead_date',{ascending:false,nullsFirst:false}).order('created_at',{ascending:false});if(error){alert('No se pudieron cargar los clientes.');console.error(error);return}clients=data||[];
  await loadSellerManagementEvents();
 if(profile?.role==='admin'){
@@ -120,7 +129,119 @@ if(profile?.role==='admin'){
   if(sellers.includes(current)) sel.value=current;
    const q=$('queueSeller'), selected=q.value;q.innerHTML='<option value="">Todos los vendedores</option>'+sellers.map(name=>`<option value="${esc(name)}">${esc(name)}</option>`).join('');if(sellers.includes(selected))q.value=selected;const rec=$('recoverySeller'),rv=rec.value;rec.innerHTML='<option value="">Todos los vendedores</option>'+sellers.map(name=>`<option value="${esc(name)}">${esc(name)}</option>`).join('');if(sellers.includes(rv))rec.value=rv;
 }
-const currentStage=$('filterStage').value;$('filterStage').innerHTML='<option value="">Todas las etapas</option>'+['Potencial','Contactado','Entrevista agendada','Primera entrevista','Propuesta','Reserva','Venta','Perdido'].map(s=>`<option value="${s}">${s}</option>`).join('');$('filterStage').value=currentStage;render()}
+const currentStage=$('filterStage').value;$('filterStage').innerHTML='<option value="">Todas las etapas</option>'+['Potencial','Contactado','Entrevista agendada','Primera entrevista','Propuesta','Reserva','Venta','Perdido'].map(s=>`<option value="${s}">${s}</option>`).join('');$('filterStage').value=currentStage;render();if(profile?.role==='admin')loadMonthlyReport()}
+
+let currentReport=null,reportFetchSequence=0;
+function defaultReportMonth(){
+ const d=new Date(),monthsBack=d.getDate()>=5?1:2;
+ const target=new Date(d.getFullYear(),d.getMonth()-monthsBack,1);
+ return String(target.getFullYear())+'-'+String(target.getMonth()+1).padStart(2,'0');
+}
+function nextReportMonth(s){const [y,m]=s.split('-').map(Number);const d=new Date(y,m,1);return String(d.getFullYear())+'-'+String(d.getMonth()+1).padStart(2,'0')}
+function reportMonthOfTimestamp(value){return new Intl.DateTimeFormat('sv-SE',{timeZone:'America/Argentina/Tucuman',year:'numeric',month:'2-digit'}).format(new Date(value))}
+function reportCountStages(cohort){const stages={};cohort.forEach(c=>{const n=c.stage||'Sin etapa';stages[n]=(stages[n]||0)+1});return stages}
+function reportGroup(cohort,keyFn){const out={};cohort.forEach(c=>{const name=keyFn(c)||'Sin datos';out[name]=(out[name]||0)+1});return out}
+function buildLiveReport(month,events){
+ const cohort=clients.filter(c=>(c.lead_date||'').slice(0,7)===month);
+ const entries=[...sellerEventsByClient.values()].flat().filter(e=>reportMonthOfTimestamp(e.recorded_at)===month);
+ const transitions=events||[];
+ const uniqueStage=stage=>new Set(transitions.filter(e=>e.new_stage===stage).map(e=>e.client_id)).size;
+ const sellers=reportGroup(cohort,c=>c.profiles?.full_name||c.legacy_owner_name||'Sin asignar');
+ const sellerRows=Object.keys(sellers).map(seller=>{
+  const group=cohort.filter(c=>(c.profiles?.full_name||c.legacy_owner_name||'Sin asignar')===seller);
+  const stages=reportCountStages(group);
+  return {seller,leads:group.length,contactado:stages.Contactado||0,
+    entrevista_agendada:stages['Entrevista agendada']||0,primera_entrevista:stages['Primera entrevista']||0,
+    propuesta:stages.Propuesta||0,reserva:stages.Reserva||0,venta:stages.Venta||0,perdido:stages.Perdido||0};
+ }).sort((a,b)=>b.leads-a.leads);
+ return {month,leads:cohort.length,stages:reportCountStages(cohort),
+  sources:reportGroup(cohort,c=>c.source||'Sin origen'),
+  projects:reportGroup(cohort,c=>c.project||'Sin datos'),sellers:sellerRows,
+  verified_contacts:new Set(entries.map(e=>e.client_id)).size,verified_actions:entries.length,
+  interviews_scheduled:uniqueStage('Entrevista agendada'),first_interviews:uniqueStage('Primera entrevista'),
+  proposals:uniqueStage('Propuesta'),reservations:uniqueStage('Reserva'),
+  sales:uniqueStage('Venta'),lost:uniqueStage('Perdido'),metrics_complete_from:'2026-12'};
+}
+function reportMetric(label,n,extra=''){return `<div class="report-stat"><small>${esc(label)}</small><strong>${esc(n)}</strong>${extra?'<small>'+esc(extra)+'</small>':''}</div>`}
+function reportList(title,map){const entries=Object.entries(map||{}).sort((a,b)=>b[1]-a[1]);return `<div><h3>${esc(title)}</h3>${entries.length?entries.map(([k,v])=>`<p><span>${esc(k)}</span><strong>${v}</strong></p>`).join(''):'<p>Sin datos</p>'}</div>`}
+function renderMonthlyReport(data,snapshot){
+ const monthText=new Intl.DateTimeFormat('es-AR',{month:'long',year:'numeric'}).format(new Date(data.month+'-01T12:00:00Z'));
+ const complete=data.month>=(data.metrics_complete_from||'2026-12');
+ const flag=complete?'':'*';
+ $('reportStatus').textContent=(snapshot?'Cierre archivado (inmutable) · generado el '+new Date(snapshot.generated_at).toLocaleDateString('es-AR'):'Vista reconstruida con información actual · sin cierre archivado')+' · '+monthText;
+ const salesCohort=Number(data.stages?.Venta||0),lostCohort=Number(data.stages?.Perdido||0);
+ $('reportContent').innerHTML=
+  '<div class="report-section">Actividad del mes seleccionado</div>'+
+  '<div class="report-cards">'+
+  reportMetric('Leads ingresados',data.leads)+
+  reportMetric('Clientes con gestión verificada',data.verified_contacts)+
+  reportMetric('Gestiones registradas',data.verified_actions)+
+  reportMetric('Entrevistas agendadas'+flag,data.interviews_scheduled)+
+  reportMetric('Primeras entrevistas'+flag,data.first_interviews)+
+  reportMetric('Propuestas'+flag,data.proposals)+
+  reportMetric('Reservas'+flag,data.reservations)+
+  reportMetric('Ventas realizadas'+flag,data.sales)+
+  reportMetric('Leads marcados Perdido'+flag,data.lost)+
+  '</div>'+
+  (!complete?'<div class="report-warning">* El historial de cambios de etapa se registra desde el 11/11/2026. Las cifras anteriores a diciembre de 2026 pueden estar incompletas. No deben interpretarse como el total real de ventas o entrevistas del mes.</div>':'')+
+  '<div class="report-section">Estado de los leads ingresados en '+esc(monthText)+'</div>'+
+  '<div class="report-cards">'+reportMetric('Leads de esa cohorte',data.leads)+
+  reportMetric('Actualmente en Venta',salesCohort)+reportMetric('Actualmente Perdido',lostCohort)+
+  reportMetric('Conversión a venta',data.leads?(salesCohort*100/data.leads).toFixed(1)+'%':'0%')+'</div>'+
+  '<p class="report-meta">Los estados de la cohorte representan la situación al cierre archivado o, si todavía no existe, su estado actual. No representan necesariamente cambios ocurridos durante el mes.</p>'+
+  '<div class="report-detail-grid">'+reportList('Estado comercial',data.stages)+reportList('Origen',data.sources)+reportList('Proyecto',data.projects)+'</div>'+
+  '<div class="report-section">Detalle por vendedor (leads ingresados en el mes)</div>'+
+  '<div class="report-table-wrap"><table class="report-table"><thead><tr><th>Vendedor</th><th>Leads</th><th>Contactado</th><th>Entrevista agendada</th><th>Primera entrevista</th><th>Propuesta</th><th>Reserva</th><th>Venta</th><th>Perdido</th></tr></thead><tbody>'+
+  (data.sellers||[]).map(s=>`<tr><td>${esc(s.seller)}</td><td>${s.leads}</td><td>${s.contactado}</td><td>${s.entrevista_agendada}</td><td>${s.primera_entrevista}</td><td>${s.propuesta}</td><td>${s.reserva}</td><td>${s.venta}</td><td>${s.perdido}</td></tr>`).join('')+
+  '</tbody></table></div>';
+}
+async function loadMonthlyReport(){
+ if(profile?.role!=='admin')return;
+ const month=$('reportMonth').value;if(!/^\d{4}-\d{2}$/.test(month))return;
+ const request=++reportFetchSequence;
+ $('reportStatus').textContent='Cargando informe...';
+ $('reportContent').innerHTML='';
+ try{
+  const {data:snapshot,error:snapError}=await db.from('monthly_commercial_reports').select('report_data,generated_at').eq('report_month',month+'-01').maybeSingle();
+  if(snapError)throw snapError;
+  if(request!==reportFetchSequence)return;
+  if(snapshot){currentReport=snapshot.report_data;renderMonthlyReport(currentReport,snapshot);return}
+  const start=month+'-01T03:00:00Z',end=nextReportMonth(month)+'-01T03:00:00Z';
+  const {data:events,error}=await db.from('client_stage_events').select('client_id,new_stage,changed_at').gte('changed_at',start).lt('changed_at',end).limit(10000);
+  if(error)throw error;
+  if(request!==reportFetchSequence)return;
+  currentReport=buildLiveReport(month,events||[]);
+  renderMonthlyReport(currentReport,null);
+ }catch(error){
+  console.error('Error cargando informe mensual',error);
+  $('reportStatus').textContent='No se pudo generar el informe. Actualizá la página e intentá nuevamente.';
+  $('reportContent').innerHTML='';
+  currentReport=null;
+ }
+}
+function csvCell(v){return '"'+String(v??'').replace(/"/g,'""')+'"'}
+function downloadMonthlyCsv(){
+ if(!currentReport)return;
+ const r=currentReport;
+ const lines=[['NORDESTE · REPORTE COMERCIAL',r.month],['Indicador','Valor'],
+ ['Leads ingresados',r.leads],['Clientes con gestión verificada',r.verified_contacts],
+ ['Gestiones registradas',r.verified_actions],['Entrevistas agendadas (registradas)',r.interviews_scheduled],
+ ['Primeras entrevistas (registradas)',r.first_interviews],['Propuestas (registradas)',r.proposals],
+ ['Reservas (registradas)',r.reservations],['Ventas (registradas)',r.sales],['Perdidos (registrados)',r.lost],
+ [],['Vendedor','Leads','Contactado','Entrevista agendada','Primera entrevista','Propuesta','Reserva','Venta','Perdido']];
+ (r.sellers||[]).forEach(s=>lines.push([s.seller,s.leads,s.contactado,s.entrevista_agendada,s.primera_entrevista,s.propuesta,s.reserva,s.venta,s.perdido]));
+ lines.push([],['Etapas actuales','Cantidad']);
+ Object.entries(r.stages||{}).forEach(([n,c])=>lines.push([n,c]));
+ lines.push([],['Origen','Cantidad']);
+ Object.entries(r.sources||{}).forEach(([n,c])=>lines.push([n,c]));
+ const csv='\uFEFF'+lines.map(row=>row.map(csvCell).join(';')).join('\r\n');
+ const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));
+ const a=document.createElement('a');a.href=url;a.download='Nordeste_Reporte_'+r.month+'.csv';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
+}
+$('reportMonth').onchange=loadMonthlyReport;
+$('reportCsv').onclick=downloadMonthlyCsv;
+$('reportPrint').onclick=()=>{if(!currentReport)return;document.body.classList.add('report-print');window.print();document.body.classList.remove('report-print')};
+
 function filtered(ignoreFollow=false){
   const q=$('search').value.trim().toLowerCase(),
         st=$('filterStage').value,
