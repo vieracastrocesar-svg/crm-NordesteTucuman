@@ -28,6 +28,15 @@
 .gestion-confirm small{display:block;color:#52665a;font-weight:400}
 #editSave:disabled{opacity:.48;cursor:not-allowed}
 .report-card{border:1px solid #a7c5b5;background:#fcfffd;margin-bottom:20px}.report-head{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}.report-head h2{margin-bottom:5px}.report-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.report-actions input{width:170px}.report-actions button{margin:0;background:#0c846a}.report-actions button.secondary{background:#475569}.report-cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:14px 0}.report-stat{padding:12px;border-radius:10px;border:1px solid #dbe7df;background:#fff}.report-stat small{display:block;color:#63796a;font-size:12px}.report-stat strong{display:block;font-size:25px;margin-top:6px}.report-section{margin:18px 0 10px;font-size:16px;font-weight:700}.report-table-wrap{overflow:auto}.report-table{border-collapse:collapse;width:100%;min-width:700px}.report-table td,.report-table th{padding:9px;border-bottom:1px solid #e2ebe5;font-size:12px;text-align:left}.report-detail-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.report-detail-grid>div{border:1px solid #e0e8e1;border-radius:10px;background:#fff;padding:10px}.report-detail-grid h3{font-size:14px;margin:0 0 8px}.report-detail-grid p{display:flex;justify-content:space-between;margin:6px 0;font-size:12px;gap:8px}.report-meta{font-size:12px;color:#61736b;margin:9px 0}.report-warning{padding:10px;border:1px solid #efd39b;border-radius:8px;background:#fff8e8;font-size:12px;color:#79561c}.report-error{color:#b42318;font-size:13px}@media(max-width:840px){.report-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.report-detail-grid{grid-template-columns:1fr}}@media print{body.report-print header,body.report-print #crm> :not(#monthlyReport){display:none!important}body.report-print #monthlyReport{display:block!important}body.report-print .report-actions{display:none!important}body.report-print .wrap{max-width:100%;padding:4px}body.report-print .report-card{border:0}}
+.report-pies{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:14px 0 20px}
+.report-pie-card{border:1px solid #dbe7df;background:#fff;border-radius:12px;padding:16px;break-inside:avoid}
+.report-pie-card h3{font-size:15px;margin:0 0 4px}
+.report-pie-card .chart-inner{margin-top:13px}
+.report-pie-card .pie{height:175px;width:175px}
+.report-pie-card .pie::after{inset:31%}
+.report-pie-card .legend{min-width:150px}
+@media(max-width:800px){.report-pies{grid-template-columns:1fr}}
+@media print{.report-pies{grid-template-columns:repeat(2,minmax(0,1fr))}.report-pie-card{break-inside:avoid;page-break-inside:avoid}.report-pie-card .pie{-webkit-print-color-adjust:exact;print-color-adjust:exact}.report-pie-card .legend-line .dot{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -189,11 +198,20 @@ function renderMonthlyReport(data,snapshot){
   reportMetric('Actualmente en Venta',salesCohort)+reportMetric('Actualmente Perdido',lostCohort)+
   reportMetric('Conversión a venta',data.leads?(salesCohort*100/data.leads).toFixed(1)+'%':'0%')+'</div>'+
   '<p class="report-meta">Los estados de la cohorte representan la situación al cierre archivado o, si todavía no existe, su estado actual. No representan necesariamente cambios ocurridos durante el mes.</p>'+
+  '<div class="report-section">Distribución visual de leads ingresados</div>'+
+  '<div class="report-pies" aria-label="Gráficos mensuales de torta">'+
+  '<article class="report-pie-card"><h3>Leads por etapa comercial</h3><p class="report-meta">Estado de la cohorte al cierre o a la fecha de consulta</p><div class="chart-inner"><div id="reportPieStages" class="pie" role="img" aria-label="Porcentaje de leads por etapa"></div><div id="reportLegendStages" class="legend"></div></div></article>'+
+  '<article class="report-pie-card"><h3>Leads por vendedor</h3><p class="report-meta">Distribución de ingresos del mes por responsable</p><div class="chart-inner"><div id="reportPieSellers" class="pie" role="img" aria-label="Porcentaje de leads por vendedor"></div><div id="reportLegendSellers" class="legend"></div></div></article>'+
+  '</div>'+
   '<div class="report-detail-grid">'+reportList('Estado comercial',data.stages)+reportList('Origen',data.sources)+reportList('Proyecto',data.projects)+'</div>'+
   '<div class="report-section">Detalle por vendedor (leads ingresados en el mes)</div>'+
   '<div class="report-table-wrap"><table class="report-table"><thead><tr><th>Vendedor</th><th>Leads</th><th>Contactado</th><th>Entrevista agendada</th><th>Primera entrevista</th><th>Propuesta</th><th>Reserva</th><th>Venta</th><th>Perdido</th></tr></thead><tbody>'+
   (data.sellers||[]).map(s=>`<tr><td>${esc(s.seller)}</td><td>${s.leads}</td><td>${s.contactado}</td><td>${s.entrevista_agendada}</td><td>${s.primera_entrevista}</td><td>${s.propuesta}</td><td>${s.reserva}</td><td>${s.venta}</td><td>${s.perdido}</td></tr>`).join('')+
   '</tbody></table></div>';
+ const sellerCounts={};
+ (data.sellers||[]).forEach(item=>{sellerCounts[item.seller]=(sellerCounts[item.seller]||0)+Number(item.leads||0)});
+ drawPie('reportPieStages','reportLegendStages',data.stages||{});
+ drawPie('reportPieSellers','reportLegendSellers',sellerCounts);
 }
 async function loadMonthlyReport(){
  if(profile?.role!=='admin')return;
