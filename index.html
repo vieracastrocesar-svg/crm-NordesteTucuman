@@ -37,6 +37,7 @@
 .report-pie-card .legend{min-width:150px}
 @media(max-width:800px){.report-pies{grid-template-columns:1fr}}
 @media print{.report-pies{grid-template-columns:repeat(2,minmax(0,1fr))}.report-pie-card{break-inside:avoid;page-break-inside:avoid}.report-pie-card .pie{-webkit-print-color-adjust:exact;print-color-adjust:exact}.report-pie-card .legend-line .dot{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+.auth-link{display:block;margin:10px auto 0;background:none;color:#1455d9;text-decoration:underline;padding:3px;font-size:13px;cursor:pointer;font-weight:600}.auth-link:hover{color:#0c846a}.auth .form-note{font-size:13px;color:#697586;margin:8px 0}.auth #forgotForm button,.auth #newPasswordForm button{width:100%}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -46,7 +47,9 @@
 <section id="authBox" class="card auth">
 <h2>Acceso al CRM</h2><p class="muted">Uso exclusivo del equipo comercial autorizado.</p>
 <div class="tabs"><button id="tabLogin" class="active" type="button">Ingresar</button><button id="tabActivate" type="button">Activar acceso</button></div>
-<form id="loginForm"><label>Email</label><input id="loginEmail" type="email" required><label>Contraseña</label><input id="loginPass" type="password" required minlength="6"><button>Ingresar</button></form>
+<form id="loginForm"><label>Email</label><input id="loginEmail" type="email" autocomplete="username" required><label>Contraseña</label><input id="loginPass" type="password" autocomplete="current-password" required minlength="6"><button>Ingresar</button><button id="forgotLink" type="button" class="auth-link">¿Olvidaste tu contraseña?</button></form>
+<form id="forgotForm" class="hidden"><h3>Recuperar contraseña</h3><p class="form-note">Ingresá el correo registrado en el CRM. Recibirás un enlace para crear una nueva contraseña.</p><label for="forgotEmail">Correo electrónico</label><input id="forgotEmail" type="email" autocomplete="email" required><button type="submit" id="sendReset">Enviar enlace de recuperación</button><button type="button" class="auth-link" id="forgotBack">Volver a ingresar</button></form>
+<form id="newPasswordForm" class="hidden"><h3>Establecer nueva contraseña</h3><p class="form-note">El enlace de tu correo fue validado. Ingresá una contraseña nueva.</p><label for="resetPassword">Nueva contraseña</label><input id="resetPassword" type="password" autocomplete="new-password" minlength="8" required><label for="resetPasswordConfirm">Confirmar contraseña</label><input id="resetPasswordConfirm" type="password" autocomplete="new-password" minlength="8" required><button type="submit" id="saveResetPassword">Guardar nueva contraseña</button></form>
 <form id="activateForm" class="hidden"><label>Email autorizado</label><input id="activateEmail" type="email" required><label>Elegí una contraseña</label><input id="activatePass" type="password" required minlength="6"><label>Repetí la contraseña</label><input id="activatePass2" type="password" required minlength="6"><button>Activar mi acceso</button><p class="muted small">Luego recibirás un correo para confirmar tu dirección.</p></form>
 <p id="authMsg" class="msg"></p>
 </section>
@@ -113,7 +116,70 @@ window.CRM_CONFIG={SUPABASE_URL:'https://roshznidzhjhtnrpljsr.supabase.co',SUPAB
 </script>
 <script>
 const cfg=window.CRM_CONFIG;const db=supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY);let user=null,profile=null,clients=[],sellerProfiles=[],sellerEventsByClient=new Map(),sellerEventsLoaded=false;const stages=['Potencial','Contactado','Entrevista agendada','Primera entrevista','Propuesta','Reserva','Venta','Perdido'];const $=id=>document.getElementById(id);const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));stages.forEach(s=>$('filterStage').insertAdjacentHTML('beforeend','<option>'+s+'</option>'));
-function authTab(which){const a=which==='activate';$('activateForm').classList.toggle('hidden',!a);$('loginForm').classList.toggle('hidden',a);$('tabActivate').classList.toggle('active',a);$('tabLogin').classList.toggle('active',!a);$('authMsg').textContent=''}$('tabLogin').onclick=()=>authTab('login');$('tabActivate').onclick=()=>authTab('activate');
+let passwordRecoveryMode=false;
+function authTab(which){
+ const a=which==='activate',f=which==='forgot',r=which==='reset';
+ $('activateForm').classList.toggle('hidden',!a);
+ $('loginForm').classList.toggle('hidden',a||f||r);
+ $('forgotForm').classList.toggle('hidden',!f);
+ $('newPasswordForm').classList.toggle('hidden',!r);
+ $('tabActivate').classList.toggle('active',a);$('tabLogin').classList.toggle('active',!a&&!f&&!r);
+ document.querySelector('.tabs').classList.toggle('hidden',r);
+ $('authMsg').textContent='';$('authMsg').className='msg';
+}
+$('tabLogin').onclick=()=>{if(!passwordRecoveryMode)authTab('login')};
+$('tabActivate').onclick=()=>{if(!passwordRecoveryMode)authTab('activate')};
+$('forgotLink').onclick=()=>{$('forgotEmail').value=$('loginEmail').value.trim();authTab('forgot')};
+$('forgotBack').onclick=()=>authTab('login');
+$('forgotForm').onsubmit=async e=>{
+ e.preventDefault();const email=$('forgotEmail').value.trim().toLowerCase();const btn=$('sendReset');
+ if(!email)return;
+ btn.disabled=true;$('authMsg').textContent='Enviando solicitud...';$('authMsg').className='msg';
+ try{
+  const redirectTo=window.location.origin+window.location.pathname;
+  const {error}=await db.auth.resetPasswordForEmail(email,{redirectTo});
+  if(error)throw error;
+  $('authMsg').textContent='Si el correo está registrado, recibirás un enlace para restablecer tu contraseña. Revisá también la carpeta de spam.';
+  $('authMsg').className='msg ok';
+ }catch(error){
+  console.error('No se pudo solicitar recuperación',error);
+  $('authMsg').textContent=error.status===429?'Se alcanzó el límite de envíos. Intentá nuevamente más tarde.':'No se pudo enviar el enlace. Volvé a intentarlo o contactá al administrador.';
+  $('authMsg').className='msg err';
+ }finally{btn.disabled=false}
+};
+function showPasswordRecovery(){
+ passwordRecoveryMode=true;$('authBox').classList.remove('hidden');$('crm').classList.add('hidden');
+ $('logout').classList.add('hidden');authTab('reset');
+}
+$('newPasswordForm').onsubmit=async e=>{
+ e.preventDefault();const password=$('resetPassword').value,confirm=$('resetPasswordConfirm').value;
+ if(password.length<8||password!==confirm){
+  $('authMsg').textContent=password.length<8?'La contraseña debe tener al menos 8 caracteres.':'Las contraseñas no coinciden.';
+  $('authMsg').className='msg err';return;
+ }
+ const btn=$('saveResetPassword');btn.disabled=true;$('authMsg').textContent='Guardando nueva contraseña...';$('authMsg').className='msg';
+ try{
+  const {data:{session},error:sessionError}=await db.auth.getSession();
+  if(sessionError||!session)throw sessionError||new Error('El enlace expiró o no pudo validarse');
+  const {error}=await db.auth.updateUser({password});
+  if(error)throw error;
+  await db.auth.signOut();
+  passwordRecoveryMode=false;
+  history.replaceState({},'',window.location.pathname);
+  $('resetPassword').value='';$('resetPasswordConfirm').value='';
+  authTab('login');
+  $('authMsg').textContent='Contraseña actualizada. Ya podés ingresar con tu nueva contraseña.';
+  $('authMsg').className='msg ok';
+ }catch(error){
+  console.error('No se pudo actualizar contraseña',error);
+  $('authMsg').textContent='No se pudo cambiar la contraseña. El enlace puede haber vencido; solicitá uno nuevo desde «¿Olvidaste tu contraseña?».';
+  $('authMsg').className='msg err';
+ }finally{btn.disabled=false}
+};
+db.auth.onAuthStateChange((event,session)=>{
+ if(event==='PASSWORD_RECOVERY'){showPasswordRecovery()}
+});
+
 $('activateForm').onsubmit=async e=>{e.preventDefault();const email=$('activateEmail').value.trim().toLowerCase(),p=$('activatePass').value,p2=$('activatePass2').value;$('authMsg').className='msg';if(p!==p2){$('authMsg').textContent='Las contraseñas no coinciden.';$('authMsg').classList.add('err');return}$('authMsg').textContent='Activando...';const {error}=await db.auth.signUp({email,password:p});if(error){$('authMsg').textContent='No se pudo activar. Verificá que el correo esté autorizado o que no tenga ya una cuenta.';$('authMsg').classList.add('err');return}$('authMsg').textContent='Cuenta creada. Revisá tu correo para confirmar el acceso y luego ingresá.';$('authMsg').classList.add('ok')};
 $('loginForm').onsubmit=async e=>{e.preventDefault();$('authMsg').textContent='Ingresando...';const {data,error}=await db.auth.signInWithPassword({email:$('loginEmail').value.trim(),password:$('loginPass').value});if(error){$('authMsg').textContent='No se pudo ingresar. Verificá email, contraseña y confirmación del correo.';$('authMsg').className='msg err';return}user=data.user;await loadProfile();await openCRM()};
 async function loadProfile(){const {data,error}=await db.from('profiles').select('*').eq('id',user.id).single();if(error)throw error;profile=data}
@@ -421,7 +487,24 @@ $('phone').addEventListener('input',()=>{phoneDuplicate=null;phoneRequest++;$('p
 $('phone').addEventListener('blur',()=>{clearTimeout(phoneTimer);checkNewClientPhone()});
 $('phoneOpenExisting').onclick=()=>{if(phoneDuplicate?.can_edit && phoneDuplicate.client_id)openClientEditor(phoneDuplicate.client_id)};
 
-$('clientForm').onsubmit=async e=>{e.preventDefault();if(!await checkNewClientPhone()){ $('saveMsg').textContent='No se puede crear el lead con ese teléfono. Corregilo o actualizá la ficha existente.';$('saveMsg').className='msg err';return}$('saveMsg').textContent='Guardando...';const selectedOwner=profile.role==='admin'?$('ownerSelect').value:user.id;if(profile.role==='admin'&&!selectedOwner){$('saveMsg').textContent='Seleccioná el vendedor al que querés asignar el lead.';$('saveMsg').className='msg err';return}const payload={owner_id:selectedOwner,name:$('name').value.trim(),phone:$('phone').value.trim(),source:$('source').value,project:$('project').value,stage:$('stage').value,financing_type:$('financing').value,last_contact:$('lastContact').value||null,next_follow_up:$('nextFollow').value||null,lost_reason:$('lostReason').value.trim(),notes:$('notes').value.trim(),lead_date:new Date().toISOString().slice(0,10)};const {error}=await db.from('clients').insert(payload);if(error){console.error(error);$('saveMsg').textContent=error.code==='23505'?'Teléfono duplicado: cambiá el número o actualizá el lead existente.':error.message||'No se pudo guardar.';$('saveMsg').className='msg err';return}e.target.reset();phoneRequest++;phoneDuplicate=null;$('phoneStatus').textContent='';$('phoneOpenExisting').classList.add('hidden');$('project').value='Sin datos';if(profile.role==='admin')$('ownerSelect').value='';$('saveMsg').textContent='Cliente guardado y asignado correctamente.';$('saveMsg').className='msg ok';await loadClients()};$('search').oninput=render;$('filterStage').onchange=render;$('filterMonth').onchange=render;$('filterSeller').onchange=render;$('filterKpi').onchange=render;$('filterFollow').onchange=render;$('recoverySearch').oninput=renderRecovery;$('recoverySeller').onchange=renderRecovery;$('queueType').onchange=renderQueue;$('queueDay').onchange=renderQueue;$('queueSeller').onchange=renderQueue;$('queueToday').onclick=()=>{$('queueDay').value=localToday();renderQueue()};$('queueAllDays').onclick=()=>{$('queueDay').value='';renderQueue()};$('clearMonth').onclick=()=>{$('filterMonth').value='';render()};$('logout').onclick=async()=>{await db.auth.signOut();location.reload()};(async()=>{const {data}=await db.auth.getSession();if(data.session){user=data.session.user;try{await loadProfile();await openCRM()}catch(e){console.error(e);await db.auth.signOut()}}})();
+$('clientForm').onsubmit=async e=>{e.preventDefault();if(!await checkNewClientPhone()){ $('saveMsg').textContent='No se puede crear el lead con ese teléfono. Corregilo o actualizá la ficha existente.';$('saveMsg').className='msg err';return}$('saveMsg').textContent='Guardando...';const selectedOwner=profile.role==='admin'?$('ownerSelect').value:user.id;if(profile.role==='admin'&&!selectedOwner){$('saveMsg').textContent='Seleccioná el vendedor al que querés asignar el lead.';$('saveMsg').className='msg err';return}const payload={owner_id:selectedOwner,name:$('name').value.trim(),phone:$('phone').value.trim(),source:$('source').value,project:$('project').value,stage:$('stage').value,financing_type:$('financing').value,last_contact:$('lastContact').value||null,next_follow_up:$('nextFollow').value||null,lost_reason:$('lostReason').value.trim(),notes:$('notes').value.trim(),lead_date:new Date().toISOString().slice(0,10)};const {error}=await db.from('clients').insert(payload);if(error){console.error(error);$('saveMsg').textContent=error.code==='23505'?'Teléfono duplicado: cambiá el número o actualizá el lead existente.':error.message||'No se pudo guardar.';$('saveMsg').className='msg err';return}e.target.reset();phoneRequest++;phoneDuplicate=null;$('phoneStatus').textContent='';$('phoneOpenExisting').classList.add('hidden');$('project').value='Sin datos';if(profile.role==='admin')$('ownerSelect').value='';$('saveMsg').textContent='Cliente guardado y asignado correctamente.';$('saveMsg').className='msg ok';await loadClients()};$('search').oninput=render;$('filterStage').onchange=render;$('filterMonth').onchange=render;$('filterSeller').onchange=render;$('filterKpi').onchange=render;$('filterFollow').onchange=render;$('recoverySearch').oninput=renderRecovery;$('recoverySeller').onchange=renderRecovery;$('queueType').onchange=renderQueue;$('queueDay').onchange=renderQueue;$('queueSeller').onchange=renderQueue;$('queueToday').onclick=()=>{$('queueDay').value=localToday();renderQueue()};$('queueAllDays').onclick=()=>{$('queueDay').value='';renderQueue()};$('clearMonth').onclick=()=>{$('filterMonth').value='';render()};$('logout').onclick=async()=>{await db.auth.signOut();location.reload()};(async()=>{
+ const url=new URL(window.location.href),hash=new URLSearchParams(window.location.hash.replace(/^#/,''));
+ const recoveryLink=hash.get('type')==='recovery'||url.searchParams.get('type')==='recovery';
+ const {data,error}=await db.auth.getSession();
+ if(recoveryLink||passwordRecoveryMode){
+  if(data?.session){showPasswordRecovery()}
+  else{
+   authTab('forgot');$('authMsg').textContent='El enlace de recuperación no es válido o venció. Solicitá uno nuevo.';$('authMsg').className='msg err';
+  }
+  return;
+ }
+ if(error)console.error('Error al validar sesión',error);
+ if(data?.session){
+  user=data.session.user;
+  try{await loadProfile();if(!passwordRecoveryMode)await openCRM()}
+  catch(e){console.error(e);await db.auth.signOut()}
+ }
+})();
 
 
 function setQuickKpi(value){
