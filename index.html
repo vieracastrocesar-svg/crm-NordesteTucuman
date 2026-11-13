@@ -40,6 +40,7 @@
 .auth-link{display:block;margin:10px auto 0;background:none;color:#1455d9;text-decoration:underline;padding:3px;font-size:13px;cursor:pointer;font-weight:600}.auth-link:hover{color:#0c846a}.auth .form-note{font-size:13px;color:#697586;margin:8px 0}.auth #forgotForm button,.auth #newPasswordForm button{width:100%}
 .stock-card{border:1px solid #a6caba;background:#fcfffd}.stock-head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}.stock-head h2{margin:0 0 4px}.stock-stats{display:flex;flex-wrap:wrap;gap:8px}.stock-stat{background:white;border:1px solid #e2ebe4;border-radius:8px;padding:8px 12px;font-size:12px}.stock-stat strong{display:block;font-size:22px}.stock-filters{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}.stock-filters select,.stock-filters input{width:auto;min-width:150px;flex:1}.stock-table{overflow:auto;max-height:560px}.stock-table table{min-width:950px;table-layout:auto}.stock-table th,.stock-table td{padding:8px 10px;text-align:left;white-space:nowrap}.stock-table tbody tr:hover{background:#eef8f1}.stock-status{border-radius:999px;padding:4px 8px;font-size:11px;font-weight:700;background:#e5f5e9;color:#18633a}.stock-status.Reservado{background:#fff0d0;color:#875b00}.stock-status.Vendido{background:#fee5e5;color:#a11b1b}.stock-actions{margin:8px 0;display:flex;justify-content:center}.stock-actions button{margin:0;background:#0c846a}.stock-note{font-size:12px;color:#586d61;margin-top:8px}.lot-hint{font-size:12px;color:#52665a;margin-top:5px}.lot-hint.error{color:#b42318}
 .stock-bonus{display:inline-block;background:#e8efff;color:#234e99;border:1px solid #c5d6fb;border-radius:6px;padding:4px 7px;font-size:11px;font-weight:700}.stock-bonus-none{color:#94a3b8}
+.crm-visibility-bar{display:flex;gap:10px;justify-content:flex-end;align-items:center;margin:0 0 14px;flex-wrap:wrap}.crm-visibility-bar button{margin:0;background:#0c846a;font-size:13px;padding:9px 14px}.crm-panel-toolbar{display:flex;justify-content:flex-end;align-items:center;margin:-8px 0 8px;min-height:29px}.crm-panel-toolbar button{margin:0;padding:5px 10px;border:1px solid #ccdcd3;border-radius:8px;background:#f1f7f3;color:#225845;font-size:12px;font-weight:700}.crm-panel-toolbar button:hover{background:#e0efe5}.crm-panel-folded>.crm-panel-toolbar{margin:0;justify-content:flex-start}.crm-panel-folded>:not(.crm-panel-toolbar){display:none!important}.crm-panel-folded{min-height:0!important}.charts>.crm-panel-toolbar{grid-column:1/-1}.charts.crm-panel-folded{display:block;margin-bottom:16px;padding:12px 15px;border:1px solid #d9e0e8;border-radius:12px;background:#fff}.charts.crm-panel-folded>.crm-panel-toolbar{margin:0}.crm-panel-folded>.crm-panel-toolbar button{font-size:13px;padding:7px 10px}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -55,7 +56,7 @@
 <form id="activateForm" class="hidden"><label>Email autorizado</label><input id="activateEmail" type="email" required><label>Elegí una contraseña</label><input id="activatePass" type="password" required minlength="6"><label>Repetí la contraseña</label><input id="activatePass2" type="password" required minlength="6"><button>Activar mi acceso</button><p class="muted small">Luego recibirás un correo para confirmar tu dirección.</p></form>
 <p id="authMsg" class="msg"></p>
 </section>
-<main id="crm" class="hidden">
+<main id="crm" class="hidden"><div class="crm-visibility-bar"><button id="toggleAllSections" type="button" aria-label="Ocultar todas las secciones">− Ocultar todas las secciones</button></div>
 <section id="monthlyReport" class="card report-card hidden" aria-label="Informe mensual de gestión comercial">
  <div class="report-head">
   <div><h2>Reporte mensual de gestión comercial</h2><p class="muted small">Cierre automático el día 5 a las 10:00. Consultá cualquier mes y descargá el resumen.</p></div>
@@ -125,6 +126,55 @@ window.CRM_CONFIG={SUPABASE_URL:'https://roshznidzhjhtnrpljsr.supabase.co',SUPAB
 <script>
 const cfg=window.CRM_CONFIG;const db=supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY);let user=null,profile=null,clients=[],sellerProfiles=[],sellerEventsByClient=new Map(),sellerEventsLoaded=false,lots=[],stockDisplayLimit=60;const stages=['Potencial','Contactado','Entrevista agendada','Primera entrevista','Propuesta','Reserva','Venta','Perdido'];const $=id=>document.getElementById(id);const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));stages.forEach(s=>$('filterStage').insertAdjacentHTML('beforeend','<option>'+s+'</option>'));
 let passwordRecoveryMode=false;
+
+const crmPanelDefinitions=[
+ ['#monthlyReport','Reporte mensual de gestión'],
+ ['#stockBox','Stock de lotes'],
+ ['.queue-card','Leads nuevos y sin seguimiento'],
+ ['.recovery-card','Leads perdidos / Recuperación'],
+ ['.charts','Gráficos comerciales'],
+ ['#clientForm','Nuevo cliente',true],
+ ['#adminBox','Resumen del equipo'],
+ ['#title','Listado de clientes',true]
+];
+const crmPanels=crmPanelDefinitions.map(([selector,title,parent])=>{
+ const target=document.querySelector(selector);
+ const section=parent?target?.closest('section.card'):target;
+ if(!section)return null;
+ const bar=document.createElement('div');
+ bar.className='crm-panel-toolbar';
+ const button=document.createElement('button');
+ button.type='button';
+ button.setAttribute('aria-expanded','true');
+ button.setAttribute('aria-label','Ocultar '+title);
+ button.textContent='− Ocultar '+title;
+ bar.appendChild(button);
+ section.insertBefore(bar,section.firstChild);
+ const item={section,button,title};
+ button.onclick=()=>setCrmPanelCollapsed(item,!section.classList.contains('crm-panel-folded'));
+ return item;
+}).filter(Boolean);
+function setCrmPanelCollapsed(item,collapsed){
+ item.section.classList.toggle('crm-panel-folded',collapsed);
+ item.button.setAttribute('aria-expanded',String(!collapsed));
+ item.button.setAttribute('aria-label',(collapsed?'Mostrar ':'Ocultar ')+item.title);
+ item.button.textContent=(collapsed?'▸ Mostrar ':'− Ocultar ')+item.title;
+ updateCrmGlobalToggle();
+}
+function updateCrmGlobalToggle(){
+ const visible=crmPanels.filter(item=>!item.section.classList.contains('hidden'));
+ const allCollapsed=visible.length>0&&visible.every(item=>item.section.classList.contains('crm-panel-folded'));
+ const button=$('toggleAllSections');
+ button.textContent=allCollapsed?'▾ Mostrar todas las secciones':'− Ocultar todas las secciones';
+ button.setAttribute('aria-label',allCollapsed?'Mostrar todas las secciones':'Ocultar todas las secciones');
+ button.setAttribute('aria-expanded',String(!allCollapsed));
+}
+$('toggleAllSections').onclick=()=>{
+ const visible=crmPanels.filter(item=>!item.section.classList.contains('hidden'));
+ const shouldCollapse=visible.some(item=>!item.section.classList.contains('crm-panel-folded'));
+ visible.forEach(item=>setCrmPanelCollapsed(item,shouldCollapse));
+};
+
 function authTab(which){
  const a=which==='activate',f=which==='forgot',r=which==='reset';
  $('activateForm').classList.toggle('hidden',!a);
@@ -200,7 +250,7 @@ async function loadSellerProfiles(){
   sel.innerHTML='<option value="">Seleccionar vendedor</option>'+
     sellerProfiles.map(s=>`<option value="${s.id}">${esc(s.full_name)}</option>`).join('');
 }
-async function openCRM(){$('authBox').classList.add('hidden');$('crm').classList.remove('hidden');$('logout').classList.remove('hidden');$('who').textContent=profile.full_name+' · '+(profile.role==='admin'?'Jefe Comercial':'Vendedor');if(profile.role==='admin'){$('monthlyReport').classList.remove('hidden');$('reportMonth').value=defaultReportMonth();$('adminBox').classList.remove('hidden');$('filterSeller').classList.remove('hidden');$('queueSeller').classList.remove('hidden');$('recoverySeller').classList.remove('hidden');$('ownerField').classList.remove('hidden');$('title').textContent='Clientes del equipo';$('subtitle').textContent='Vista gerencial completa, incluidos los registros sin asignar.';await loadSellerProfiles()}await loadClients()}
+async function openCRM(){$('authBox').classList.add('hidden');$('crm').classList.remove('hidden');$('logout').classList.remove('hidden');$('who').textContent=profile.full_name+' · '+(profile.role==='admin'?'Jefe Comercial':'Vendedor');if(profile.role==='admin'){$('monthlyReport').classList.remove('hidden');$('reportMonth').value=defaultReportMonth();$('adminBox').classList.remove('hidden');$('filterSeller').classList.remove('hidden');$('queueSeller').classList.remove('hidden');$('recoverySeller').classList.remove('hidden');$('ownerField').classList.remove('hidden');$('title').textContent='Clientes del equipo';$('subtitle').textContent='Vista gerencial completa, incluidos los registros sin asignar.';await loadSellerProfiles()}updateCrmGlobalToggle();await loadClients()}
 
 const stockMoney=n=>n==null?'—':new Intl.NumberFormat('es-AR',{maximumFractionDigits:2}).format(Number(n));
 const stockSort=(a,b)=>a.project.localeCompare(b.project,'es')||a.block.localeCompare(b.block,'es',{numeric:true})||a.code.localeCompare(b.code,'es',{numeric:true});
