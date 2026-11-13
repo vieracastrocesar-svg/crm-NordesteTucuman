@@ -67,7 +67,7 @@
 </section>
 <section id="stockBox" class="card stock-card" aria-label="Disponibilidad de lotes">
  <div class="stock-head"><div><h2>Stock de lotes Nordeste</h2><p class="muted small">Inventario actualizado con el estado de cada lote. Las reservas y ventas del CRM actualizan el stock automáticamente.</p></div><div class="stock-stats"><span class="stock-stat"><strong id="stockTotal">0</strong>Total</span><span class="stock-stat"><strong id="stockAvailable">0</strong>Disponibles</span><span class="stock-stat"><strong id="stockReserved">0</strong>Reservados</span><span class="stock-stat"><strong id="stockSold">0</strong>Vendidos</span></div></div>
- <div class="stock-filters"><select id="stockProject" aria-label="Barrio en stock"><option value="">Todos los barrios</option><option>La Corona</option><option>El Cortijo</option></select><select id="stockStatus" aria-label="Estado del lote"><option value="">Todos los estados</option><option>Disponible</option><option>Reservado</option><option>Vendido</option></select><select id="stockBonus" aria-label="Filtrar por bonificación"><option value="">Todas las bonificaciones</option><option value="special">Financiación especial</option><option value="none">Sin financiación especial</option></select><input id="stockSearch" placeholder="Buscar manzana o lote..." aria-label="Buscar lote"></div>
+ <div class="stock-filters"><select id="stockProject" aria-label="Barrio en stock"><option value="">Todos los barrios</option><option>La Corona</option><option>El Cortijo</option></select><select id="stockBlock" aria-label="Filtrar por manzana"><option value="">Todas las manzanas</option></select><select id="stockStatus" aria-label="Estado del lote"><option value="">Todos los estados</option><option>Disponible</option><option>Reservado</option><option>Vendido</option></select><select id="stockBonus" aria-label="Filtrar por bonificación"><option value="">Todas las bonificaciones</option><option value="special">Financiación especial</option><option value="none">Sin financiación especial</option></select><input id="stockSearch" placeholder="Buscar manzana o lote..." aria-label="Buscar lote"></div>
  <div class="stock-table"><table><thead><tr><th>Barrio</th><th>Manzana</th><th>Lote</th><th>Superficie</th><th>Tipo</th><th>Esquina</th><th>USD/m²</th><th>Precio lista USD</th><th>Financiado USD</th><th>Contado USD</th><th>Bonificación</th><th>Estado</th></tr></thead><tbody id="stockRows"></tbody></table></div>
  <div class="stock-actions"><button id="stockShowMore" type="button" class="hidden">Ver más lotes</button></div><p id="stockMessage" class="stock-note"></p>
 </section>
@@ -254,10 +254,16 @@ async function openCRM(){$('authBox').classList.add('hidden');$('crm').classList
 
 const stockMoney=n=>n==null?'—':new Intl.NumberFormat('es-AR',{maximumFractionDigits:2}).format(Number(n));
 const stockSort=(a,b)=>a.project.localeCompare(b.project,'es')||a.block.localeCompare(b.block,'es',{numeric:true})||a.code.localeCompare(b.code,'es',{numeric:true});
+function updateStockBlockOptions(){
+ const project=$('stockProject').value, selected=$('stockBlock').value;
+ const blocks=[...new Set(lots.filter(l=>!project||l.project===project).map(l=>String(l.block)))].sort((a,b)=>a.localeCompare(b,'es',{numeric:true}));
+ $('stockBlock').innerHTML='<option value="">Todas las manzanas</option>'+blocks.map(block=>`<option value="${esc(block)}">Manzana ${esc(block)}</option>`).join('');
+ $('stockBlock').value=blocks.includes(selected)?selected:'';
+}
 function renderStock(){
  const search=$('stockSearch').value.trim().toLocaleLowerCase('es-AR');
- const project=$('stockProject').value,status=$('stockStatus').value,bonus=$('stockBonus').value;
- const matching=lots.filter(l=>(!project||l.project===project)&&(!status||l.status===status)&&(!bonus||(bonus==='special'?Boolean(l.bonus_note):!l.bonus_note))&&(!search||[l.project,l.block,l.code,l.lot_type].some(v=>String(v||'').toLocaleLowerCase('es-AR').includes(search)))).sort(stockSort);
+ const project=$('stockProject').value,block=$('stockBlock').value,status=$('stockStatus').value,bonus=$('stockBonus').value;
+ const matching=lots.filter(l=>(!project||l.project===project)&&(!block||String(l.block)===block)&&(!status||l.status===status)&&(!bonus||(bonus==='special'?Boolean(l.bonus_note):!l.bonus_note))&&(!search||[l.project,l.block,l.code,l.lot_type].some(v=>String(v||'').toLocaleLowerCase('es-AR').includes(search)))).sort(stockSort);
  $('stockTotal').textContent=lots.length;
  $('stockAvailable').textContent=lots.filter(x=>x.status==='Disponible').length;
  $('stockReserved').textContent=lots.filter(x=>x.status==='Reservado').length;
@@ -295,9 +301,10 @@ function validateSelectedLot(stage,lotId,current,previousStage=null){
 async function loadLots(){
  const {data,error}=await db.from('lots').select('*').order('project').order('block').order('code').limit(1000);
  if(error){console.error('Error cargando stock',error);$('stockMessage').textContent='No se pudo cargar el stock. Reintentá actualizando la página.';return}
- lots=data||[];renderStock();updateNewLotOptions();
+ lots=data||[];updateStockBlockOptions();renderStock();updateNewLotOptions();
 }
-$('stockProject').onchange=()=>{stockDisplayLimit=60;renderStock()};
+$('stockProject').onchange=()=>{stockDisplayLimit=60;updateStockBlockOptions();renderStock()};
+$('stockBlock').onchange=()=>{stockDisplayLimit=60;renderStock()};
 $('stockStatus').onchange=()=>{stockDisplayLimit=60;renderStock()};
 $('stockBonus').onchange=()=>{stockDisplayLimit=60;renderStock()};
 $('stockSearch').oninput=()=>{stockDisplayLimit=60;renderStock()};
